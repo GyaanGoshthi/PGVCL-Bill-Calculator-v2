@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PGVCL Electricity Bill Calculator — Gyaan Goshthi</title>
+<style>
+  /* Base layout */
+  body { font-family:'Segoe UI', sans-serif; padding:20px; background:#f2f7fc; color:#333; }
+  .container { max-width:900px; margin:16px auto; padding:20px; background:#fff; border-radius:12px; box-shadow:0 0 10px rgba(0,0,0,.08); }
+  .branding { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; }
+  .branding img { width:36px; height:auto; }
+  .branding-title { font-size:22px; font-weight:700; color:#007BFF; }
+  h2 { text-align:center; color:#005599; margin:6px 0 14px; }
+
+  /* Inputs */
+  label { display:block; margin-bottom:4px; font-size:14px; }
+  input[type="number"], input[type="date"], select {
+    width:100%; padding:10px; border-radius:6px;
+    border:1px solid #ccc; box-sizing:border-box;
+    background:#e8fbe8; font-size:14px;
+  }
+
+  /* Structure helpers */
+  .form-grid { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .form-grid > div { flex:1; min-width:180px; }
+  .reading-block { display:flex; gap:20px; flex-wrap:wrap; margin:0 12px; }
+  .reading-block > div { flex:1; min-width:220px; }
+  .arrears-row { display:flex; align-items:center; justify-content:space-between; margin:8px 12px; }
+  .arrears-row label { flex:1; margin:0; }
+  .arrears-row input { flex:1; max-width:220px; height:40px; }
+
+  /* Buttons row */
+  .button-row { display:flex; gap:12px; justify-content:center; margin-top:10px; }
+  .button-row button { flex:0 0 40%; padding:12px 16px; border-radius:10px; font-size:15px; cursor:pointer; border:none; }
+  .btn-primary { background:#28a745; color:#fff; }      /* Calculate = Green */
+.btn-primary:hover { background:#218838; }
+.btn-secondary { background:#fd7e14; color:#fff; }    /* Edit = Orange */
+.btn-secondary:hover { background:#e36a00; }
+
+
+  /* Results */
+  .results { margin-top:18px; background:#f1f1f1; padding:14px; border-radius:10px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  th { background:#007BFF; color:#fff; padding:10px; }
+  td { border:1px solid #ddd; padding:10px; text-align:center; vertical-align:middle; }
+  #billTable tr:nth-child(even){ background:#e6f2ff; }
+  #billTable tr:nth-child(odd){ background:#ffffff; }
+  td.description { text-align:left; }
+  td input { width:70px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:right; }
+  .footer { text-align:center; margin-top:12px; color:#555; font-weight:600; }
+  .remark { font-weight:700; margin-top:8px; text-align:center; }
+
+  /* Modal */
+  .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); justify-content:center; align-items:center; z-index:9999; }
+  .modal.show { display:flex; }
+  .modal-content { background:#fff; padding:18px; border-radius:10px; max-width:700px; width:92%; max-height:85%; overflow:auto; box-shadow:0 6px 20px rgba(0,0,0,0.12); }
+  .modal-content h3 { margin-top:0; text-align:center; }
+  .modal-actions { text-align:right; margin-top:14px; }
+  .modal-actions button { margin-left:8px; padding:8px 14px; border-radius:8px; border:none; cursor:pointer; }
+  .btn-accept { background:#4caf50; color:#fff; }
+  .btn-cancel { background:#f44336; color:#fff; }
+
+  /* Editor layout */
+  .editor-top { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .editor-top > div { flex:1; min-width:140px; }
+  .slab-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  .slab-row > div { flex:1; min-width:100px; }
+
+  /* small helpers */
+  .small-muted { color:#666; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="branding">
+    <img src="gyaan-goshthi-logo.png" alt="Gyaan Goshthi Logo" />
+    <div class="branding-title">Gyaan Goshthi</div>
+  </div>
+
+  <h2>PGVCL Electricity Bill Calculator</h2>
+
+  <!-- Top Inputs -->
+  <div class="form-grid">
+    <div>
+      <label>Billing Period From</label>
+      <input type="date" id="fromDate">
+    </div>
+    <div>
+      <label>Billing Period To</label>
+      <input type="date" id="toDate">
+    </div>
+    <div>
+      <label>Load</label>
+      <select id="load">
+        <option value="">Select Load</option>
+        <option value="≤2">≤2</option>
+        <option value="2–4">2–4</option>
+        <option value="4–6">4–6</option>
+        <option value=">6">&gt;6</option>
+      </select>
+    </div>
+    <div>
+      <label>Customer Type</label>
+      <select id="customerType">
+        <option value="">Select Type</option>
+        <option value="Regular">Regular</option>
+        <option value="Prepaid">Prepaid</option>
+        <option value="BPL">BPL</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Readings -->
+  <div class="reading-block">
+    <div>
+      <label>Closing Import Reading</label>
+      <input type="number" id="closingImport" step="0.01" />
+      <label>Opening Import Reading</label>
+      <input type="number" id="openingImport" step="0.01" />
+    </div>
+    <div>
+      <label>Closing Export Reading</label>
+      <input type="number" id="closingExport" step="0.01" />
+      <label>Opening Export Reading</label>
+      <input type="number" id="openingExport" step="0.01" />
+    </div>
+  </div>
+
+  <!-- Arrears aligned -->
+  <div class="arrears-row">
+    <label for="arrears">Arrears (use negative for refund)</label>
+    <input type="number" id="arrears" />
+  </div>
+
+  <!-- Buttons -->
+  <div class="button-row">
+    <button id="editRatesBtn" class="btn-secondary" type="button">Edit Rates</button>
+    <button id="calculateBillBtn" class="btn-primary" type="button">Calculate Bill</button>
+  </div>
+
+  <!-- Results Table -->
+  <div class="results">
+    <h3>Bill Details</h3>
+    <table id="billTable">
+      <tr><th>Description</th><th>Rate (₹)</th><th>Amount (₹)</th></tr>
+      <tr><td class="description">Net Import</td><td>-</td><td id="netImport">0</td></tr>
+      <tr><td class="description">Net Export</td><td>-</td><td id="netExport">0</td></tr>
+      <tr><td class="description">Net Usage (Import − Export)</td><td>-</td><td id="netUsage">0</td></tr>
+      <tr><td class="description">Fixed Charges</td><td id="fixedRate">0.00</td><td id="fixedCharges">0.00</td></tr>
+      <tr><td class="description">Energy Charge</td><td id="energyRate">0</td><td id="energyCharge">0.00</td></tr>
+      <tr><td class="description">Fuel Charges</td><td id="fuelRate">0.00</td><td id="fuelCharges">0.00</td></tr>
+      <tr><td class="description">ED Charges (<span id="edPercentDisplay">15%</span>)</td><td id="edRate">0.00</td><td id="edCharges">0.00</td></tr>
+      <tr><td class="description">Arrears</td><td>-</td><td id="arrearsAmount">0.00</td></tr>
+      <tr><td class="description">Solar Refund</td><td id="solarRateDisplay">0.00</td><td id="solarRefund">0.00</td></tr>
+      <tr><th>Total (Payable +ve / Refund −ve)</th><th>-</th><th id="total">0.00</th></tr>
+    </table>
+    <div class="remark" id="remarkText"></div>
+  </div>
+
+  <div class="footer">www.gyaangoshthi.com</div>
+</div>
+
+<!-- Disclaimer Modal -->
+<div id="disclaimerModal" class="modal" aria-hidden="true">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="disclaimerTitle">
+    <h3 id="disclaimerTitle">⚠️ Disclaimer</h3>
+    <p class="small-muted">Editing tariff rates will change calculations. Only proceed if you understand the implications. Changes are local and not saved remotely.</p>
+    <div class="modal-actions">
+      <button id="disclaimerCancel" class="btn-cancel" type="button">Cancel</button>
+      <button id="disclaimerAccept" class="btn-accept" type="button">I Agree</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tariff Editor Modal -->
+<div id="tariffEditor" class="modal" aria-hidden="true">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+    <h3 id="editorTitle">Edit Tariff Rates</h3>
+    <div id="editorInner">
+      <!-- Will be generated dynamically -->
+    </div>
+    <div class="modal-actions">
+      <button id="closeTariffBtn" class="btn-cancel" type="button">Close</button>
+      <button id="saveTariffBtn" class="btn-accept" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* -------------------------
+   Hardcoded tariff data
+------------------------- */
+const tariffData = {
+  Regular: {
+    "≤2": { fixed: 15, fuelRate: 2.30, edPercent: 0.15, solarRate: 2.25,
+      slabs:[{min:0,max:50,rate:3.05},{min:51,max:100,rate:3.50},{min:101,max:250,rate:4.15},{min:251,max:99999,rate:5.20}]
+    },
+    "2–4": { fixed:25, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:3.05},{min:51,max:100,rate:3.50},{min:101,max:250,rate:4.15},{min:251,max:99999,rate:5.20}]
+    },
+    "4–6": { fixed:45, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:3.05},{min:51,max:100,rate:3.50},{min:101,max:250,rate:4.15},{min:251,max:99999,rate:5.20}]
+    },
+    ">6": { fixed:70, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:3.05},{min:51,max:100,rate:3.50},{min:101,max:250,rate:4.15},{min:251,max:99999,rate:5.20}]
+    }
+  },
+  Prepaid: {
+    "≤2": { fixed:15, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:2.59},{min:51,max:100,rate:2.98},{min:101,max:250,rate:3.53},{min:251,max:99999,rate:4.42}]
+    },
+    "2–4": { fixed:25, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:2.59},{min:51,max:100,rate:2.98},{min:101,max:250,rate:3.53},{min:251,max:99999,rate:4.42}]
+    },
+    "4–6": { fixed:45, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:2.59},{min:51,max:100,rate:2.98},{min:101,max:250,rate:3.53},{min:251,max:99999,rate:4.42}]
+    },
+    ">6": { fixed:70, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:2.59},{min:51,max:100,rate:2.98},{min:101,max:250,rate:3.53},{min:251,max:99999,rate:4.42}]
+    }
+  },
+  BPL: {
+    any: { fixed:5, fuelRate:2.30, edPercent:0.15, solarRate:2.25,
+      slabs:[{min:0,max:50,rate:1.50},{min:51,max:100,rate:3.50},{min:101,max:250,rate:4.15},{min:251,max:99999,rate:5.20}]
+    }
+  }
+};
+
+let liveTariffs = JSON.parse(JSON.stringify(tariffData));
+
+/* -------------------------
+   Helpers
+------------------------- */
+function parseDate(d){ if(!d) return null; const dt = new Date(d); return isNaN(dt)? null : dt; }
+function monthsBetween(from,to){
+  const d1 = parseDate(from), d2 = parseDate(to);
+  if(!d1 || !d2 || d2 < d1) return 1;
+  const months = (d2.getFullYear() - d1.getFullYear())*12 + (d2.getMonth() - d1.getMonth()) + 1;
+  return Math.max(1, months);
+}
+function getTariff(type, load){
+  if(type === "BPL") return liveTariffs.BPL.any;
+  return (liveTariffs[type] && liveTariffs[type][load]) || null;
+}
+
+/* -------------------------
+   Calculation (Calculate Bill)
+------------------------- */
+function calculateCharges(){
+  const load = document.getElementById('load').value;
+  const type = document.getElementById('customerType').value;
+  const oi = parseFloat(document.getElementById('openingImport').value);
+  const oe = parseFloat(document.getElementById('openingExport').value);
+  const ci = parseFloat(document.getElementById('closingImport').value);
+  const ce = parseFloat(document.getElementById('closingExport').value);
+  const arrears = parseFloat(document.getElementById('arrears').value) || 0;
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+
+  if(!type || !load){ alert('Select Load & Customer Type'); return; }
+  if([oi,oe,ci,ce].some(v => isNaN(v))){ alert('Enter valid meter readings'); return; }
+  if(ci < oi){ alert('Closing Import must be ≥ Opening Import'); return; }
+  if(ce < oe){ alert('Closing Export must be ≥ Opening Export'); return; }
+
+  const netImport = +(ci - oi).toFixed(3);
+  const netExport = +(ce - oe).toFixed(3);
+  const netUsage = +(netImport - netExport).toFixed(3);
+  const months = monthsBetween(from, to);
+
+  const tariff = getTariff(type, load);
+  if(!tariff){ alert('Tariff not found for selected type/load.'); return; }
+
+  // Fixed
+  const fixedCharges = +(tariff.fixed * months).toFixed(2);
+
+  // Energy + Fuel
+  let energyCharge = 0;
+  let energyRateDisplay = '';
+  let energyPieces = [];
+  let fuelCharges = 0;
+  if(netUsage > 0){
+    let remaining = netUsage;
+    for(const slab of tariff.slabs){
+      if(remaining <= 0) break;
+      const slabCapacity = (slab.min === 0) ? (slab.max - slab.min) : (slab.max - slab.min + 1);
+      const unitsThis = Math.min(remaining, slabCapacity);
+      if(unitsThis > 0){
+        energyCharge += unitsThis * slab.rate;
+        energyPieces.push(`(${unitsThis} × ${slab.rate.toFixed(2)})`);
+        remaining -= unitsThis;
+      }
+    }
+    energyRateDisplay = energyPieces.join(' + ');
+    fuelCharges = +(netUsage * tariff.fuelRate).toFixed(2);
+  }
+
+  const subtotal = +(fixedCharges + energyCharge + fuelCharges).toFixed(2);
+  const edCharges = netUsage > 0 ? +((subtotal * (tariff.edPercent || 0.15)).toFixed(2)) : 0.00;
+  const solarRefund = netUsage < 0 ? +(Math.abs(netUsage) * (tariff.solarRate || 2.25)).toFixed(2) : 0.00;
+  const totalRaw = subtotal + edCharges + arrears - solarRefund;
+  const total = +totalRaw.toFixed(2);
+
+  // Update UI
+  document.getElementById('netImport').innerText = netImport;
+  document.getElementById('netExport').innerText = netExport;
+  document.getElementById('netUsage').innerText = netUsage;
+
+  document.getElementById('fixedCharges').innerText = fixedCharges.toFixed(2);
+  document.getElementById('fixedRate').innerText = tariff.fixed.toFixed(2);
+
+  document.getElementById('energyCharge').innerText = energyCharge.toFixed(2);
+  document.getElementById('energyRate').innerText = (energyRateDisplay || '0');
+
+  document.getElementById('fuelCharges').innerText = fuelCharges.toFixed(2);
+  document.getElementById('fuelRate').innerText = tariff.fuelRate.toFixed(2);
+
+  document.getElementById('edCharges').innerText = edCharges.toFixed(2);
+  document.getElementById('edRate').innerText = ((tariff.edPercent || 0.15) * 100).toFixed(0) + '%';
+  document.getElementById('edPercentDisplay').innerText = ((tariff.edPercent || 0.15) * 100).toFixed(0) + '%';
+
+  document.getElementById('arrearsAmount').innerText = arrears.toFixed(2);
+  document.getElementById('solarRefund').innerText = solarRefund.toFixed(2);
+  document.getElementById('solarRateDisplay').innerText = (tariff.solarRate || 2.25).toFixed(2);
+
+  document.getElementById('total').innerText = total.toFixed(2);
+
+  const remarkEl = document.getElementById('remarkText');
+  if(total > 0) remarkEl.innerText = 'Payment Due: ₹' + total.toFixed(2);
+  else if(total < 0) remarkEl.innerText = 'Refund Due: ₹' + Math.abs(total).toFixed(2);
+  else remarkEl.innerText = 'No Payment / No Refund';
+}
+
+/* -------------------------
+   Tariff Editor (with slabs)
+------------------------- */
+function idSafe(...parts){ return parts.join('__').replace(/[^a-zA-Z0-9_]/g,'_'); }
+
+function buildTariffEditorUI(selectedType, selectedLoad){
+  const container = document.getElementById('editorInner');
+  container.innerHTML = '';
+
+  // For BPL use 'any' key
+  const loadKey = (selectedType === 'BPL') ? 'any' : selectedLoad;
+  const relevantTariff = (liveTariffs[selectedType] && liveTariffs[selectedType][loadKey]) ? liveTariffs[selectedType][loadKey] : null;
+  if(!relevantTariff){
+    container.innerHTML = '<p class="small-muted">No tariff data available for the selected type/load.</p>';
+    return;
+  }
+
+  // Top fields
+  const top = document.createElement('div');
+  top.className = 'editor-top';
+  top.innerHTML = `
+    <div><label>Fixed Charge (₹/month)</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-field="fixed" value="${relevantTariff.fixed}" /></div>
+    <div><label>Fuel Rate (₹/unit)</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-field="fuelRate" value="${relevantTariff.fuelRate}" /></div>
+    <div><label>Solar Purchase Rate (₹/unit)</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-field="solarRate" value="${relevantTariff.solarRate}" /></div>
+    <div><label>ED %</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-field="edPercent" value="${(relevantTariff.edPercent * 100).toFixed(0)}" /></div>
+  `;
+  container.appendChild(top);
+
+  // Slabs
+  const slabTitle = document.createElement('div');
+  slabTitle.innerHTML = '<strong>Energy Slabs (edit min, max, rate)</strong><br>';
+  container.appendChild(slabTitle);
+
+  relevantTariff.slabs.forEach((s, idx) => {
+    const r = document.createElement('div');
+    r.className = 'slab-row';
+    r.innerHTML = `
+      <div><label>Min Units</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-slab="${idx}" data-field="min" value="${s.min}" /></div>
+      <div><label>Max Units</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-slab="${idx}" data-field="max" value="${s.max}" /></div>
+      <div><label>Rate (₹/unit)</label><input type="number" data-type="${selectedType}" data-load="${loadKey}" data-slab="${idx}" data-field="rate" value="${s.rate}" /></div>
+    `;
+    container.appendChild(r);
+  });
+}
+
+/* Show / hide helper for modal */
+function showModal(id){ const el = document.getElementById(id); if(el) el.classList.add('show'); }
+function hideModal(id){ const el = document.getElementById(id); if(el) el.classList.remove('show'); }
+
+/* Open the tariff editor modal (after disclaimer accepted) */
+function openEditRatesModal(){
+  const type = document.getElementById('customerType').value;
+  const load = document.getElementById('load').value;
+  if(!type || !load){ alert('Select Load & Customer Type first'); return; }
+  buildTariffEditorUI(type, load);
+  showModal('tariffEditor');
+}
+
+/* Save edited tariffs (handles slab fields + top-level fields) */
+function saveTariffEdits(){
+  const inputs = document.querySelectorAll('#editorInner input');
+  inputs.forEach(inp => {
+    const type = inp.dataset.type;
+    const load = inp.dataset.load;
+    const slabIdx = inp.dataset.slab;
+    const field = inp.dataset.field;
+    if(typeof slabIdx !== 'undefined' && slabIdx !== '') {
+      // slab fields: min/max/rate
+      // convert to number
+      const v = parseFloat(inp.value);
+      if(!isNaN(v)) {
+        liveTariffs[type][load].slabs[slabIdx][field] = v;
+      }
+    } else {
+      // top-level: fixed, fuelRate, solarRate, edPercent (edPercent stored as decimal)
+      const v = parseFloat(inp.value);
+      if(field === 'edPercent') {
+        if(!isNaN(v)) liveTariffs[type][load][field] = (v / 100);
+      } else {
+        if(!isNaN(v)) liveTariffs[type][load][field] = v;
+      }
+    }
+  });
+  alert('Tariff updated locally.');
+  hideModal('tariffEditor');
+}
+
+/* -------------------------
+   Event bindings
+------------------------- */
+document.getElementById('calculateBillBtn').addEventListener('click', () => {
+  // alias to old name
+  calculateCharges();
+});
+
+let _pendingEdit = null;
+document.getElementById('editRatesBtn').addEventListener('click', () => {
+  const type = document.getElementById('customerType').value;
+  const load = document.getElementById('load').value;
+  if(!type || !load){ alert('Please select Load and Customer Type first.'); return; }
+
+  // store selection so accept can use it
+  _pendingEdit = { type, load };
+  showModal('disclaimerModal');
+});
+
+document.getElementById('disclaimerAccept').addEventListener('click', () => {
+  hideModal('disclaimerModal');
+  // use stored selection
+  if(_pendingEdit){
+    buildTariffEditorUI(_pendingEdit.type, _pendingEdit.load);
+    showModal('tariffEditor');
+    _pendingEdit = null;
+  } else {
+    // fallback
+    openEditRatesModal();
+  }
+});
+
+document.getElementById('disclaimerCancel').addEventListener('click', () => {
+  hideModal('disclaimerModal');
+  _pendingEdit = null;
+});
+
+document.getElementById('saveTariffBtn').addEventListener('click', saveTariffEdits);
+document.getElementById('closeTariffBtn').addEventListener('click', () => hideModal('tariffEditor'));
+
+/* small UX: close modals when clicking outside content */
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', (ev) => {
+    if(ev.target === m){
+      m.classList.remove('show');
+      if(m.id === 'disclaimerModal') _pendingEdit = null;
+    }
+  });
+});
+</script>
+</body>
+</html>
